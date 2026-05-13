@@ -1,13 +1,18 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { Home, Settings, Plus } from "lucide-react";
+import { Home, Settings, Plus, Sparkles } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function BottomNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const { user } = useAuth();
+
+  if (!user || pathname === "/auth") return null;
 
   const items = [
     { icon: Home, label: "Home", path: "/" },
     { icon: Plus, label: "Add", path: "/add" },
+    { icon: Sparkles, label: "Try-On", path: "/tryon" },
     { icon: Settings, label: "Settings", path: "/settings" },
   ];
 
@@ -20,10 +25,8 @@ export default function BottomNav() {
             <button
               key={path}
               onClick={() => navigate(path)}
-              className={`flex flex-col items-center gap-0.5 rounded-xl px-5 py-1.5 transition-colors ${
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+              className={`flex flex-col items-center gap-0.5 rounded-xl px-4 py-1.5 transition-colors ${
+                active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Icon size={22} strokeWidth={active ? 2.5 : 2} />

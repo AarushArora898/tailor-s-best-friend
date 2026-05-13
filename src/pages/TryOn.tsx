@@ -18,14 +18,6 @@ const PRESETS = [
 
 const GARMENT_TYPES = ["Shirt", "T-Shirt", "Pant", "Jeans", "Kurta", "Pajama", "Waistcoat", "Blazer", "Sherwani", "Suit", "Jacket"];
 
-function fileToDataUrl(f: File): Promise<string> {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result as string);
-    r.onerror = rej;
-    r.readAsDataURL(f);
-  });
-}
 
 function blobToDataUrl(b: Blob): Promise<string> {
   return new Promise((res, rej) => {

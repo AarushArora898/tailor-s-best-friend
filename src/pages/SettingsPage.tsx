@@ -35,6 +35,20 @@ export default function SettingsPage() {
           <Switch checked={darkMode} onCheckedChange={(v) => update({ darkMode: v })} />
         </div>
 
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Signed in as</p>
+            <p className="font-medium text-card-foreground break-all">{user?.email}</p>
+          </div>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={async () => { await signOut(); navigate("/auth", { replace: true }); }}
+          >
+            <LogOut size={16} className="mr-2" /> Sign Out
+          </Button>
+        </div>
+
         <p className="text-center text-xs text-muted-foreground">ProTailor Measure Manager v1.0</p>
       </div>
     </div>

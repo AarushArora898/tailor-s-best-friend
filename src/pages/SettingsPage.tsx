@@ -2,10 +2,16 @@ import PageHeader from "@/components/PageHeader";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useSettings } from "@/contexts/SettingsContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsPage() {
   const { shopName, darkMode, update } = useSettings();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen pb-24">
@@ -27,6 +33,20 @@ export default function SettingsPage() {
             <p className="text-sm text-muted-foreground">Switch between light and dark theme</p>
           </div>
           <Switch checked={darkMode} onCheckedChange={(v) => update({ darkMode: v })} />
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Signed in as</p>
+            <p className="font-medium text-card-foreground break-all">{user?.email}</p>
+          </div>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={async () => { await signOut(); navigate("/auth", { replace: true }); }}
+          >
+            <LogOut size={16} className="mr-2" /> Sign Out
+          </Button>
         </div>
 
         <p className="text-center text-xs text-muted-foreground">ProTailor Measure Manager v1.0</p>

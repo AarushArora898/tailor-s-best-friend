@@ -18,19 +18,29 @@ const PRESETS = [
 
 const GARMENT_TYPES = ["Shirt", "T-Shirt", "Pant", "Jeans", "Kurta", "Pajama", "Waistcoat", "Blazer", "Sherwani", "Suit", "Jacket"];
 
-function fileToDataUrl(f: File): Promise<string> {
+
+function blobToDataUrl(b: Blob): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(r.result as string);
     r.onerror = rej;
-    r.readAsDataURL(f);
+    r.readAsDataURL(b);
   });
+}
+
+function fileToDataUrl(f: File): Promise<string> {
+  return blobToDataUrl(f);
 }
 
 async function urlToDataUrl(url: string): Promise<string> {
   const res = await fetch(url);
-  const blob = await res.blob();
-  return await fileToDataUrl(new File([blob], "img"));
+  let blob = await res.blob();
+  if (!blob.type || blob.type === "application/octet-stream") {
+    const ext = url.split(".").pop()?.toLowerCase();
+    const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+    blob = new Blob([blob], { type: mime });
+  }
+  return blobToDataUrl(blob);
 }
 
 export default function TryOn() {

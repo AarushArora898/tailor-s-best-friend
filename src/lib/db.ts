@@ -56,9 +56,9 @@ export async function addCustomer(c: Omit<Customer, "createdAt" | "updatedAt">):
     phone: c.phone,
     address: c.address,
     email: c.email,
-    shirt: c.shirt,
-    pant: c.pant,
-    blazer: c.blazer,
+    shirt: c.shirt as any,
+    pant: c.pant as any,
+    blazer: c.blazer as any,
   });
   if (error) throw error;
 }
@@ -71,9 +71,9 @@ export async function updateCustomer(c: Customer): Promise<void> {
       phone: c.phone,
       address: c.address,
       email: c.email,
-      shirt: c.shirt,
-      pant: c.pant,
-      blazer: c.blazer,
+      shirt: c.shirt as any,
+      pant: c.pant as any,
+      blazer: c.blazer as any,
     })
     .eq("id", c.id);
   if (error) throw error;

@@ -1,58 +1,96 @@
-import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import { supabase } from "@/integrations/supabase/client";
 import type { Customer } from "@/types/customer";
+import { emptyShirt, emptyPant, emptyBlazer } from "@/types/customer";
 
-interface TailorDB extends DBSchema {
-  customers: {
-    key: string;
-    value: Customer;
-    indexes: { "by-name": string; "by-phone": string; "by-date": string };
+type Row = {
+  id: string;
+  user_id: string;
+  name: string;
+  phone: string;
+  address: string;
+  email: string;
+  shirt: any;
+  pant: any;
+  blazer: any;
+  created_at: string;
+  updated_at: string;
+};
+
+function fromRow(r: Row): Customer {
+  return {
+    id: r.id,
+    name: r.name,
+    phone: r.phone,
+    address: r.address,
+    email: r.email,
+    shirt: { ...emptyShirt, ...(r.shirt ?? {}) },
+    pant: { ...emptyPant, ...(r.pant ?? {}) },
+    blazer: { ...emptyBlazer, ...(r.blazer ?? {}) },
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
   };
 }
 
-let dbPromise: Promise<IDBPDatabase<TailorDB>> | null = null;
-
-function getDB() {
-  if (!dbPromise) {
-    dbPromise = openDB<TailorDB>("protailor-db", 1, {
-      upgrade(db) {
-        const store = db.createObjectStore("customers", { keyPath: "id" });
-        store.createIndex("by-name", "name");
-        store.createIndex("by-phone", "phone");
-        store.createIndex("by-date", "createdAt");
-      },
-    });
-  }
-  return dbPromise;
-}
-
 export async function getAllCustomers(): Promise<Customer[]> {
-  const db = await getDB();
-  const all = await db.getAll("customers");
-  return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as Row[]).map(fromRow);
 }
 
 export async function getCustomer(id: string): Promise<Customer | undefined> {
-  const db = await getDB();
-  return db.get("customers", id);
+  const { data, error } = await supabase.from("customers").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? fromRow(data as Row) : undefined;
 }
 
-export async function addCustomer(customer: Customer): Promise<void> {
-  const db = await getDB();
-  await db.put("customers", customer);
+export async function addCustomer(c: Omit<Customer, "createdAt" | "updatedAt">): Promise<void> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) throw new Error("Not signed in");
+  const { error } = await supabase.from("customers").insert({
+    id: c.id,
+    user_id: u.user.id,
+    name: c.name,
+    phone: c.phone,
+    address: c.address,
+    email: c.email,
+    shirt: c.shirt,
+    pant: c.pant,
+    blazer: c.blazer,
+  });
+  if (error) throw error;
 }
 
-export async function updateCustomer(customer: Customer): Promise<void> {
-  const db = await getDB();
-  await db.put("customers", customer);
+export async function updateCustomer(c: Customer): Promise<void> {
+  const { error } = await supabase
+    .from("customers")
+    .update({
+      name: c.name,
+      phone: c.phone,
+      address: c.address,
+      email: c.email,
+      shirt: c.shirt,
+      pant: c.pant,
+      blazer: c.blazer,
+    })
+    .eq("id", c.id);
+  if (error) throw error;
 }
 
 export async function deleteCustomer(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete("customers", id);
+  const { error } = await supabase.from("customers").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function searchCustomers(query: string): Promise<Customer[]> {
-  const all = await getAllCustomers();
-  const q = query.toLowerCase();
-  return all.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
+  const q = `%${query}%`;
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .or(`name.ilike.${q},phone.ilike.${q}`)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as Row[]).map(fromRow);
 }

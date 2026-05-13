@@ -2,10 +2,16 @@ import PageHeader from "@/components/PageHeader";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useSettings } from "@/contexts/SettingsContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsPage() {
   const { shopName, darkMode, update } = useSettings();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen pb-24">

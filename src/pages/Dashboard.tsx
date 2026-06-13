@@ -32,14 +32,6 @@ export default function Dashboard() {
     };
   }, [query]);
 
-  async function loadCustomers() {
-    if (query.trim()) {
-      searchCustomers(query).then(setCustomers);
-    } else {
-      getAllCustomers().then(setCustomers);
-    }
-  }
-
   const recent = customers.slice(0, 5);
 
   return (

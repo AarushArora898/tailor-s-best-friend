@@ -35,18 +35,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    Promise.race([
-      supabase.auth.getSession(),
-      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), SESSION_TIMEOUT_MS)),
-    ]).then((result) => {
+    const timeout = window.setTimeout(() => {
+      if (!active || restoredFromStorage) return;
+      setLoading(false);
+    }, SESSION_TIMEOUT_MS);
+
+    supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       restoredFromStorage = true;
-      setSession(result && "data" in result ? result.data.session : null);
+      window.clearTimeout(timeout);
+      setSession(data.session);
       setLoading(false);
     });
 
     return () => {
       active = false;
+      window.clearTimeout(timeout);
       sub.subscription.unsubscribe();
     };
   }, []);

@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Scissors } from "lucide-react";
-import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,14 +8,19 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 
-const schema = z.object({
-  email: z.string().trim().email("Invalid email").max(255),
-  password: z.string().min(6, "Min 6 characters").max(72),
-});
+type AuthValidation = { ok: true; email: string; password: string } | { ok: false; error: string };
+
+function validateAuth(email: string, password: string): AuthValidation {
+  const cleanEmail = email.trim();
+  if (!cleanEmail || !cleanEmail.includes("@") || cleanEmail.length > 255) return { ok: false, error: "Invalid email" };
+  if (password.length < 6) return { ok: false, error: "Min 6 characters" };
+  if (password.length > 72) return { ok: false, error: "Password is too long" };
+  return { ok: true, email: cleanEmail, password };
+}
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshSession } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,31 +32,48 @@ export default function AuthPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = schema.safeParse({ email, password });
-    if (!parsed.success) {
-      toast({ title: parsed.error.issues[0].message, variant: "destructive" });
+    const parsed = validateAuth(email, password);
+    if (parsed.ok === false) {
+      toast({ title: parsed.error, variant: "destructive" });
       return;
     }
     setLoading(true);
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
-          email: parsed.data.email,
-          password: parsed.data.password,
+          email: parsed.email,
+          password: parsed.password,
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
-        toast({ title: "Account created!", description: "You're signed in." });
+        let activeSession = await refreshSession();
+        if (!activeSession) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: parsed.email,
+            password: parsed.password,
+          });
+          if (signInError) throw signInError;
+          activeSession = await refreshSession();
+        }
+        if (!activeSession) throw new Error("Account created. Please sign in once with the same email and password.");
+        toast({ title: "Account ready", description: "You're signed in." });
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email: parsed.data.email,
-          password: parsed.data.password,
+          email: parsed.email,
+          password: parsed.password,
         });
         if (error) throw error;
+        const activeSession = await refreshSession();
+        if (!activeSession) throw new Error("Sign-in did not finish. Please try again.");
       }
       navigate("/", { replace: true });
     } catch (err: any) {
-      toast({ title: err.message ?? "Authentication failed", variant: "destructive" });
+      const message = String(err.message ?? "Authentication failed");
+      toast({
+        title: message.includes("Invalid login credentials") ? "Invalid email or password" : message,
+        description: message.includes("Invalid login credentials") ? "Use Sign up first for a new email, or continue with Google." : undefined,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -77,8 +97,8 @@ export default function AuthPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-            <Scissors size={26} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl text-primary-foreground">
+            ✂
           </div>
           <h1 className="text-2xl font-bold">ProTailor</h1>
           <p className="text-sm text-muted-foreground">Measure Manager</p>

@@ -11,23 +11,25 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function Dashboard() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const { shopName } = useSettings();
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadCustomers();
-  }, []);
+    let cancelled = false;
+    setLoading(true);
+    const timer = window.setTimeout(async () => {
+      const next = query.trim() ? await searchCustomers(query) : await getAllCustomers();
+      if (!cancelled) {
+        setCustomers(next);
+        setLoading(false);
+      }
+    }, query.trim() ? 180 : 0);
 
-  async function loadCustomers() {
-    setCustomers(await getAllCustomers());
-  }
-
-  useEffect(() => {
-    if (query.trim()) {
-      searchCustomers(query).then(setCustomers);
-    } else {
-      loadCustomers();
-    }
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [query]);
 
   const recent = customers.slice(0, 5);
@@ -77,12 +79,15 @@ export default function Dashboard() {
           </h2>
           <div className="space-y-2">
             <AnimatePresence>
-              {(query ? customers : recent).length === 0 && (
+              {loading && (
+                <p className="py-8 text-center text-sm text-muted-foreground">Loading customers...</p>
+              )}
+              {!loading && (query ? customers : recent).length === 0 && (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   {query ? "No results found" : "No customers yet. Add your first!"}
                 </p>
               )}
-              {(query ? customers : recent).map((c, i) => (
+              {!loading && (query ? customers : recent).map((c, i) => (
                 <motion.div
                   key={c.id}
                   initial={{ opacity: 0, y: 10 }}

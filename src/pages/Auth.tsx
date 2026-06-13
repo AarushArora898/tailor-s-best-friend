@@ -33,7 +33,7 @@ export default function AuthPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const parsed = validateAuth(email, password);
-    if (!parsed.ok) {
+    if (parsed.ok === false) {
       toast({ title: parsed.error, variant: "destructive" });
       return;
     }

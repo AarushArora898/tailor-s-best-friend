@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+const SESSION_TIMEOUT_MS = 6000;
+
 interface AuthCtx {
   user: User | null;
   session: Session | null;
@@ -23,15 +25,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    let active = true;
+    let restoredFromStorage = false;
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (!active) return;
+      if (event === "INITIAL_SESSION" && !restoredFromStorage) return;
       setSession(s);
       setLoading(false);
     });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+
+    Promise.race([
+      supabase.auth.getSession(),
+      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), SESSION_TIMEOUT_MS)),
+    ]).then((result) => {
+      if (!active) return;
+      restoredFromStorage = true;
+      setSession(result && "data" in result ? result.data.session : null);
       setLoading(false);
     });
-    return () => sub.subscription.unsubscribe();
+
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {

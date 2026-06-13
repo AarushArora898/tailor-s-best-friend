@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Scissors } from "lucide-react";
-import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 
-const schema = z.object({
-  email: z.string().trim().email("Invalid email").max(255),
-  password: z.string().min(6, "Min 6 characters").max(72),
-});
+function validateAuth(email: string, password: string) {
+  const cleanEmail = email.trim();
+  if (!cleanEmail || !cleanEmail.includes("@") || cleanEmail.length > 255) return { error: "Invalid email" };
+  if (password.length < 6) return { error: "Min 6 characters" };
+  if (password.length > 72) return { error: "Password is too long" };
+  return { email: cleanEmail, password };
+}
 
 export default function AuthPage() {
   const navigate = useNavigate();
@@ -29,25 +30,25 @@ export default function AuthPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = schema.safeParse({ email, password });
-    if (!parsed.success) {
-      toast({ title: parsed.error.issues[0].message, variant: "destructive" });
+    const parsed = validateAuth(email, password);
+    if (parsed.error) {
+      toast({ title: parsed.error, variant: "destructive" });
       return;
     }
     setLoading(true);
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
-          email: parsed.data.email,
-          password: parsed.data.password,
+          email: parsed.email,
+          password: parsed.password,
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
         toast({ title: "Account created!", description: "You're signed in." });
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email: parsed.data.email,
-          password: parsed.data.password,
+          email: parsed.email,
+          password: parsed.password,
         });
         if (error) throw error;
       }
@@ -77,8 +78,8 @@ export default function AuthPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-            <Scissors size={26} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl text-primary-foreground">
+            ✂
           </div>
           <h1 className="text-2xl font-bold">ProTailor</h1>
           <p className="text-sm text-muted-foreground">Measure Manager</p>

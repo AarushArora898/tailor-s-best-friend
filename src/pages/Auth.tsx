@@ -8,17 +8,19 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 
-function validateAuth(email: string, password: string) {
+type AuthValidation = { ok: true; email: string; password: string } | { ok: false; error: string };
+
+function validateAuth(email: string, password: string): AuthValidation {
   const cleanEmail = email.trim();
-  if (!cleanEmail || !cleanEmail.includes("@") || cleanEmail.length > 255) return { error: "Invalid email" };
-  if (password.length < 6) return { error: "Min 6 characters" };
-  if (password.length > 72) return { error: "Password is too long" };
-  return { email: cleanEmail, password };
+  if (!cleanEmail || !cleanEmail.includes("@") || cleanEmail.length > 255) return { ok: false, error: "Invalid email" };
+  if (password.length < 6) return { ok: false, error: "Min 6 characters" };
+  if (password.length > 72) return { ok: false, error: "Password is too long" };
+  return { ok: true, email: cleanEmail, password };
 }
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshSession } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +33,7 @@ export default function AuthPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const parsed = validateAuth(email, password);
-    if (parsed.error) {
+    if (!parsed.ok) {
       toast({ title: parsed.error, variant: "destructive" });
       return;
     }
@@ -44,17 +46,34 @@ export default function AuthPage() {
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
-        toast({ title: "Account created!", description: "You're signed in." });
+        let activeSession = await refreshSession();
+        if (!activeSession) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: parsed.email,
+            password: parsed.password,
+          });
+          if (signInError) throw signInError;
+          activeSession = await refreshSession();
+        }
+        if (!activeSession) throw new Error("Account created. Please sign in once with the same email and password.");
+        toast({ title: "Account ready", description: "You're signed in." });
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: parsed.email,
           password: parsed.password,
         });
         if (error) throw error;
+        const activeSession = await refreshSession();
+        if (!activeSession) throw new Error("Sign-in did not finish. Please try again.");
       }
       navigate("/", { replace: true });
     } catch (err: any) {
-      toast({ title: err.message ?? "Authentication failed", variant: "destructive" });
+      const message = String(err.message ?? "Authentication failed");
+      toast({
+        title: message.includes("Invalid login credentials") ? "Invalid email or password" : message,
+        description: message.includes("Invalid login credentials") ? "Use Sign up first for a new email, or continue with Google." : undefined,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

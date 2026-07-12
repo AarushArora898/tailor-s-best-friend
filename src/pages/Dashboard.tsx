@@ -6,7 +6,8 @@ import type { Customer } from "@/types/customer";
 import { useSettings } from "@/contexts/SettingsContext";
 import CustomerCard from "@/components/CustomerCard";
 import { Input } from "@/components/ui/input";
-import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "@/hooks/use-toast";
+import { getFriendlyErrorMessage, withRetry } from "@/lib/retry";
 
 export default function Dashboard() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -19,10 +20,16 @@ export default function Dashboard() {
     let cancelled = false;
     setLoading(true);
     const timer = window.setTimeout(async () => {
-      const next = query.trim() ? await searchCustomers(query) : await getAllCustomers();
-      if (!cancelled) {
-        setCustomers(next);
-        setLoading(false);
+      try {
+        const next = await withRetry(() => query.trim() ? searchCustomers(query) : getAllCustomers(), { retries: 2 });
+        if (!cancelled) setCustomers(next);
+      } catch (err) {
+        if (!cancelled) {
+          setCustomers([]);
+          toast({ title: "Could not load customers", description: getFriendlyErrorMessage(err), variant: "destructive" });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }, query.trim() ? 180 : 0);
 
@@ -78,27 +85,17 @@ export default function Dashboard() {
             {query ? "Search Results" : "Recent Customers"}
           </h2>
           <div className="space-y-2">
-            <AnimatePresence>
-              {loading && (
-                <p className="py-8 text-center text-sm text-muted-foreground">Loading customers...</p>
-              )}
-              {!loading && (query ? customers : recent).length === 0 && (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  {query ? "No results found" : "No customers yet. Add your first!"}
-                </p>
-              )}
-              {!loading && (query ? customers : recent).map((c, i) => (
-                <motion.div
-                  key={c.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ delay: i * 0.04 }}
-                >
-                  <CustomerCard customer={c} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {loading && (
+              <p className="py-8 text-center text-sm text-muted-foreground">Loading customers...</p>
+            )}
+            {!loading && (query ? customers : recent).length === 0 && (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {query ? "No results found" : "No customers yet. Add your first!"}
+              </p>
+            )}
+            {!loading && (query ? customers : recent).map((c) => (
+              <CustomerCard key={c.id} customer={c} />
+            ))}
           </div>
         </div>
       </div>

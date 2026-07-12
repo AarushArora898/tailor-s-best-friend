@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import { getFriendlyErrorMessage, isInvalidCredentialsError, withRetry } from "@/lib/retry";
 
 type AuthValidation = { ok: true; email: string; password: string } | { ok: false; error: string };
 
@@ -21,14 +22,19 @@ function validateAuth(email: string, password: string): AuthValidation {
 export default function AuthPage() {
   const navigate = useNavigate();
   const { user, refreshSession } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [statusText, setStatusText] = useState("");
 
   useEffect(() => {
     if (user) navigate("/", { replace: true });
   }, [user, navigate]);
+
+  useEffect(() => {
+    void import("@/pages/Dashboard");
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,19 +44,26 @@ export default function AuthPage() {
       return;
     }
     setLoading(true);
+    setStatusText("");
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await withRetry(() => supabase.auth.signUp({
           email: parsed.email,
           password: parsed.password,
           options: { emailRedirectTo: window.location.origin },
+        }), {
+          retries: 3,
+          onRetry: () => setStatusText("Backend is waking up. Retrying..."),
         });
         if (error) throw error;
         let activeSession = await refreshSession();
         if (!activeSession) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
+          const { error: signInError } = await withRetry(() => supabase.auth.signInWithPassword({
             email: parsed.email,
             password: parsed.password,
+          }), {
+            retries: 3,
+            onRetry: () => setStatusText("Still connecting. Retrying..."),
           });
           if (signInError) throw signInError;
           activeSession = await refreshSession();
@@ -58,23 +71,36 @@ export default function AuthPage() {
         if (!activeSession) throw new Error("Account created. Please sign in once with the same email and password.");
         toast({ title: "Account ready", description: "You're signed in." });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error } = await withRetry(() => supabase.auth.signInWithPassword({
           email: parsed.email,
           password: parsed.password,
+        }), {
+          retries: 3,
+          onRetry: () => setStatusText("Backend is waking up. Retrying..."),
         });
-        if (error) throw error;
+        if (error) {
+          if (isInvalidCredentialsError(error)) {
+            setMode("signup");
+            toast({
+              title: "Create your account first",
+              description: "I switched this form to Sign Up. Press the button once to create your account with this email.",
+            });
+            return;
+          }
+          throw error;
+        }
         const activeSession = await refreshSession();
         if (!activeSession) throw new Error("Sign-in did not finish. Please try again.");
       }
       navigate("/", { replace: true });
     } catch (err: any) {
-      const message = String(err.message ?? "Authentication failed");
       toast({
-        title: message.includes("Invalid login credentials") ? "Invalid email or password" : message,
-        description: message.includes("Invalid login credentials") ? "Use Sign up first for a new email, or continue with Google." : undefined,
+        title: isInvalidCredentialsError(err) ? "Wrong password or account not created" : getFriendlyErrorMessage(err),
+        description: isInvalidCredentialsError(err) ? "Use Sign Up for a new email, or check the password for an existing account." : undefined,
         variant: "destructive",
       });
     } finally {
+      setStatusText("");
       setLoading(false);
     }
   }
@@ -119,7 +145,7 @@ export default function AuthPage() {
           </div>
 
           <Button type="submit" disabled={loading} className="h-11 w-full font-semibold">
-            {loading ? "Please wait..." : mode === "signin" ? "Sign In" : "Sign Up"}
+            {loading ? statusText || "Please wait..." : mode === "signin" ? "Sign In" : "Sign Up"}
           </Button>
 
           <div className="relative my-2 flex items-center">

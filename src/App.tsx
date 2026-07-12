@@ -6,17 +6,25 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AuthPage from "@/pages/Auth";
 
 const BottomNav = lazy(() => import("@/components/BottomNav"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const CustomerForm = lazy(() => import("@/pages/CustomerForm"));
 const CustomerDetail = lazy(() => import("@/pages/CustomerDetail"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
-const AuthPage = lazy(() => import("@/pages/Auth"));
 const TryOn = lazy(() => import("@/pages/TryOn"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function PageLoader() {
   return (
